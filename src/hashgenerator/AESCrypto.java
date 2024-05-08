@@ -1,6 +1,9 @@
 package hashgenerator;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -42,30 +45,66 @@ public class AESCrypto {
         return new IvParameterSpec(iv);
     }
 
-    public static String encrypt(String algorithm, String input, SecretKey key,
-            IvParameterSpec iv) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException,
-            BadPaddingException, IllegalBlockSizeException {
-
-        Cipher cipher = Cipher.getInstance(algorithm);
-        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] cipherText = cipher.doFinal(input.getBytes());
-        return Base64.getEncoder()
-                .encodeToString(cipherText);
-    }
-
-    public static String decrypt(String algorithm, String cipherText, SecretKey key,
-            IvParameterSpec iv) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException,
-            BadPaddingException, IllegalBlockSizeException {
-
-        Cipher cipher = Cipher.getInstance(algorithm);
-        cipher.init(Cipher.DECRYPT_MODE, key, iv);
-        byte[] plainText = cipher.doFinal(Base64.getDecoder()
-                .decode(cipherText));
-        return new String(plainText);
-    }
+    public static void encryptFile(String algorithm, SecretKey key, IvParameterSpec iv,
+    File inputFile, File outputFile) throws IOException, NoSuchPaddingException,
+    NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException,
+    BadPaddingException, IllegalBlockSizeException {
     
+    Cipher cipher = Cipher.getInstance(algorithm);
+    cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+    FileOutputStream outputStream;
+    
+        try (FileInputStream inputStream = new FileInputStream(inputFile)) {
+            outputStream = new FileOutputStream(outputFile);
+            byte[] buffer = new byte[64];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                byte[] output = cipher.update(buffer, 0, bytesRead);
+                if (output != null)
+                    outputStream.write(output);
+            }       
+            byte[] outputBytes = cipher.doFinal();
+            if (outputBytes != null)
+                outputStream.write(outputBytes);
+            }
+    outputStream.close();
+}
+    
+    public static void decryptFile(String algorithm, SecretKey key, IvParameterSpec iv,
+    File inputFile, File outputFile) throws IOException,
+    NoSuchPaddingException, NoSuchAlgorithmException,
+    InvalidAlgorithmParameterException, InvalidKeyException,
+    BadPaddingException, IllegalBlockSizeException {
+        
+    Cipher cipher = Cipher.getInstance(algorithm);
+    cipher.init(Cipher.DECRYPT_MODE, key, iv);
+
+    try (FileInputStream inputStream = new FileInputStream(inputFile);
+         FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+
+        byte[] buffer = new byte[64];
+        int bytesRead;
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            /*
+            The Cipher.update() method processes a portion of the input data with the specified cipher 
+            operation (encrypt or decrypt) and returns the processed output.
+            */
+            byte[] output = cipher.update(buffer, 0, bytesRead);
+            if (output != null)
+                outputStream.write(output);
+        }
+
+        /*
+        After processing all the input data (either through the loop or reaching the end of the 
+        input stream), you call Cipher.doFinal(). This method finalizes the decryption process 
+        and handles any remaining data (like the last block with padding, if applicable). 
+        */
+        byte[] finalOutput = cipher.doFinal();
+        if (finalOutput != null)
+            outputStream.write(finalOutput);
+    }
+}
+    /*
     public String Connect(String[] args){
         
         if (args.length == 0) {
@@ -98,5 +137,6 @@ public class AESCrypto {
         return null;
     }
 
-    //public static void main(String[] args) {}
+    public static void main(String[] args) {}
+*/
 }

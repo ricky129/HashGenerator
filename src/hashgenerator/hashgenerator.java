@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
- */
 package hashgenerator;
 
 import java.io.BufferedReader;
@@ -53,6 +49,38 @@ public class hashgenerator {
         }
     }
 
+    public String Connect(String[] args){
+        String message = null;
+        if (args.length == 0) {
+            System.err.println("Usage: java HashGeneratorServer <message>");
+            return null;
+        }
+
+        try (ServerSocket serverSocket = new ServerSocket(8080)) {
+            System.out.println("Server in ascolto sulla porta " + 8080);
+
+            while (true) {
+                try (Socket clientSocket = serverSocket.accept()) {
+                    System.out.println("Nuova connessione da " + clientSocket.getInetAddress().getHostAddress());
+                    
+                    PrintWriter out;
+                    try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+                        out = new PrintWriter(clientSocket.getOutputStream(), true);
+                        message = in.readLine();
+                        if(message != null)
+                            out.println(message);//modificare
+                        else
+                            System.out.println("Errore, il messaggio è vuoto.");
+                    }
+                    out.close();
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+        return message;
+    }
+    
     /**
      * @param args the command line arguments
      */
