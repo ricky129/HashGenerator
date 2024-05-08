@@ -11,6 +11,7 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -19,9 +20,6 @@ import java.util.logging.Logger;
  * @author ricky
  */
 public class hashgenerator {
-// Variabile statica per mantenere l'istanza singleton
-
-    private Socket clientSocket;
 
     //metodo per generare l'hash SHA-256 di una stringa
     public String stringToSHA2(String input) {
@@ -49,7 +47,7 @@ public class hashgenerator {
                 hexString.append(hex);
             }
             return hexString.toString();
-        } catch (Exception ex) {
+        } catch (NoSuchAlgorithmException ex) {
             ex.printStackTrace();
             return null;
         }
@@ -71,21 +69,20 @@ public class hashgenerator {
             System.out.println("Server in ascolto sulla porta " + 8080);
 
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("Nuova connessione da " + clientSocket.getInetAddress().getHostAddress());
-
-                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-                
-                String message = in.readLine();
-                if(message != null)
-                out.println(HG1.stringToSHA2(message));
-                else
-                    System.out.println("Errore, il messaggio è vuoto.");
-                
-                in.close();
-                out.close();
-                clientSocket.close();
+                try (Socket clientSocket = serverSocket.accept()) {
+                    System.out.println("Nuova connessione da " + clientSocket.getInetAddress().getHostAddress());
+                    
+                    PrintWriter out;
+                    try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+                        out = new PrintWriter(clientSocket.getOutputStream(), true);
+                        String message = in.readLine();
+                        if(message != null)
+                            out.println(HG1.stringToSHA2(message));
+                        else
+                            System.out.println("Errore, il messaggio è vuoto.");
+                    }
+                    out.close();
+                }
             }
         } catch (IOException ex) {
             Logger.getLogger(hashgenerator.class.getName()).log(Level.SEVERE, null, ex);
