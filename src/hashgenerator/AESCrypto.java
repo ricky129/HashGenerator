@@ -3,17 +3,16 @@ package hashgenerator;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Base64;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -104,6 +103,33 @@ public class AESCrypto {
             outputStream.write(finalOutput);
     }
 }
+    
+    public static void readFile(File input){
+        BufferedReader reader = null;
+
+        try {
+            reader = new BufferedReader(new FileReader(input));
+            String line;
+
+            while ((line = reader.readLine()) != null)
+                System.out.println(line);
+            
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(AESCrypto.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(AESCrypto.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            if (reader != null)
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    System.err.println("Error closing the file: " + e.getMessage());
+                }
+        }
+    }
+
+        
+    }
     /*
     public String Connect(String[] args){
         
@@ -139,4 +165,3 @@ public class AESCrypto {
 
     public static void main(String[] args) {}
 */
-}
