@@ -103,7 +103,6 @@ public class AESCrypto {
             outputStream.write(finalOutput);
     }
 }
-    
     public static void readFile(File input){
         BufferedReader reader = null;
 
@@ -127,6 +126,7 @@ public class AESCrypto {
                 }
         }
     }
+    
 
         
     }
