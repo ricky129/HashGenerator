@@ -17,6 +17,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -31,6 +33,9 @@ import javax.crypto.spec.SecretKeySpec;
  * @author ricky
  */
 public class EncryptedEchoServer {
+    String message;
+    static String algorithm = "AES/CBC/PKCS5Padding";
+    static IvParameterSpec iv = generateIv();
     
     public static SecretKey generateKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
@@ -43,56 +48,6 @@ public class EncryptedEchoServer {
         while(message.length()%16!=0)
             message+="_";
         return message;
-    }
-    
-    public static void saveOnFile(String key){
-
-        // Define the file path
-        String filePath = "key.txt";
-
-        // Use try-with-resources to ensure the BufferedWriter is properly closed
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            // Write the message to the file
-            writer.write(key);
-
-            System.out.println("Message has been written to the file: " + filePath);
-        } catch (IOException e) {
-            System.err.println("Error writing to file: " + e.getMessage());
-        }
-    }
-    
-    private static void saveSecretKeyToFile(SecretKey secretKey) throws Exception {
-        // Convert SecretKey to byte array
-        byte[] keyBytes = secretKey.getEncoded();
-
-        try ( // Write the byte array to a file
-                FileOutputStream fos = new FileOutputStream("key.txt")) {
-            fos.write(keyBytes);
-        }
-    }
-    
-    private static SecretKey loadSecretKeyFromFile() throws Exception {
-        // Read the byte array from the file
-        byte[] keyBytes = Files.readAllBytes(Paths.get("key.txt"));
-
-        // Reconstruct the SecretKey from the byte array
-        SecretKey secretKey = new SecretKeySpec(keyBytes, "AES"); // Assuming AES algorithm
-
-        return secretKey;
-    }
-    
-    public static String getKey(){
-        String filePath = "key.txt", key = null;
-        
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            
-            while(reader.readLine() != null)
-                key+=reader.readLine();
-            
-        } catch (IOException e) {
-            System.out.println("Error reading from file: " + e.getMessage());
-        }
-        return key;
     }
     
     public static IvParameterSpec generateIv() {
@@ -125,33 +80,28 @@ public class EncryptedEchoServer {
     return new String(plainText);
     }
     
-    private static String byteArrayToString(byte[] byteArray) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : byteArray) {
-            sb.append(b).append(" ");
-        }
-        return sb.toString();
+    public static String FileToString() throws IOException{
+        String content = new String(Files.readAllBytes(Paths.get("key.txt")));
+        return content;
     }
     
-    public static byte[] StringToByte(String str){
-        
-        // Convert string to byte array using a custom character encoding (e.g., US-ASCII)
-        Charset charset = Charset.forName("US-ASCII"); // Using US-ASCII encoding
-        byte[] byteArray = str.getBytes(charset);
-        
-        return byteArray;
+    public static String SecretKeyToString(SecretKey secretkey){
+        try {
+            secretkey = KeyGenerator.getInstance(algorithm).generateKey();
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        String encodedKey = Base64.getEncoder().encodeToString(secretkey.getEncoded());
+        return encodedKey;
+    }
+    
+    public static SecretKey StringToSecretKey(String str){
+        byte[] decodedKey = Base64.getDecoder().decode(str);
+        SecretKey originalKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, algorithm);
+        return originalKey;
     }
     
     public static void main(String[] args){
-        Scanner s = new Scanner(System.in);
-        String message, algorithm = "AES/CBC/PKCS5Padding";
-        IvParameterSpec iv = generateIv();
-        SecretKey key = null;
-            
-        if (args.length != 2) {
-            System.err.println("Usage: java HashGeneratorServer <key> (first time) || java HashGeneratorServer <message>");
-            return;
-        }
 
         try (ServerSocket serverSocket = new ServerSocket(8080)) {
             System.out.println("Server in ascolto sulla porta " + 8080);
@@ -163,25 +113,22 @@ public class EncryptedEchoServer {
                     PrintWriter out;
                     try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
                         out = new PrintWriter(clientSocket.getOutputStream(), true);
-                        if(key == null) {
-                            key = StringToByte(args[0]);
-                            
-                            System.out.println("Invia il tuo primo messaggio.");
-                            message = s.nextLine();
-                            if(message != null)
-                                
-                            else
-                            System.out.println("Errore, il messaggio è vuoto.");
-                        }
-                        else {
-                        System.out.println(args[0]);
-                        System.out.println("Scrivi il tuo messaggio.");
-                        message = s.nextLine();
-                        if(message != null)
-                            out.println(message);
-                        else
-                            System.out.println("Errore, il messaggio è vuoto.");
-                        }
+                    }
+                        SecretKey key = StringToSecretKey(FileToString());
+                    try {
+                        message = decrypt(algorithm, FileToString(), key, iv);
+                    } catch (NoSuchPaddingException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (NoSuchAlgorithmException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (InvalidAlgorithmParameterException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (InvalidKeyException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (BadPaddingException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (IllegalBlockSizeException ex) {
+                        Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
                     }
                     out.close();
                 }
@@ -191,3 +138,62 @@ public class EncryptedEchoServer {
         }
 }
 }
+
+    /*
+
+    public static void saveOnFile(String key){
+
+        // Define the file path
+        String filePath = "key.txt";
+
+        // Use try-with-resources to ensure the BufferedWriter is properly closed
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            // Write the message to the file
+            writer.write(key);
+
+            System.out.println("Message has been written to the file: " + filePath);
+        } catch (IOException e) {
+            System.err.println("Error writing to file: " + e.getMessage());
+        }
+    }
+    
+    private static void saveSecretKeyToFile(SecretKey secretKey) throws Exception {
+        // Convert SecretKey to byte array
+        byte[] keyBytes = secretKey.getEncoded();
+
+        try ( // Write the byte array to a file
+                FileOutputStream fos = new FileOutputStream("key.txt")) {
+            fos.write(keyBytes);
+        }
+    }
+    
+    private static String loadSecretKeyFromFile() throws Exception {
+        // Read the byte array from the file
+        byte[] keyBytes = Files.readAllBytes(Paths.get("key.txt"));
+
+        // Reconstruct the SecretKey from the byte array
+        SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
+
+        return byteArrayToString(secretKey.getEncoded());
+    }
+
+    public static SecretKey ByteToSecretKey(byte[] bt){
+        return new SecretKeySpec(bt, algorithm);
+    }
+
+    private static String byteArrayToString(byte[] byteArray) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : byteArray)
+            sb.append(b).append(" ");
+        return sb.toString();
+    }
+    
+    public static byte[] StringToByte(String str){
+        
+        // Convert string to byte array using a custom character encoding (e.g., US-ASCII)
+        Charset charset = Charset.forName("US-ASCII"); // Using US-ASCII encoding
+        byte[] byteArray = str.getBytes(charset);
+        
+        return byteArray;
+    }
+*/
