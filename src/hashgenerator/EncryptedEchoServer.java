@@ -1,43 +1,125 @@
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.security.*;
 import java.util.Base64;
-import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.KeyGenerator;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- *
- * @author ricky
- */
 public class EncryptedEchoServer {
 
-    static String message;
     static String algorithm = "AES/CBC/PKCS5Padding";
-    static IvParameterSpec iv = generateIv();
+
+    public static void KeyGenerator() {
+        try {
+            // Generate AES key
+            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+            keyGen.init(256); // for AES-256
+            SecretKey secretKey = keyGen.generateKey();
+
+            // Encode the key as Base64
+            String encodedKey = Base64.getEncoder().encodeToString(secretKey.getEncoded());
+
+            // Save the key to a file
+            Files.write(Paths.get("key.txt"), encodedKey.getBytes());
+            System.out.println("Key saved to key.txt: " + encodedKey);
+
+        } catch (IOException | NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static IvParameterSpec generateIv() {
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        return new IvParameterSpec(iv);
+    }
+
+    public static String encrypt(String algorithm, String input, SecretKey key, IvParameterSpec iv)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException,
+            BadPaddingException, IllegalBlockSizeException {
+
+        Cipher cipher = Cipher.getInstance(algorithm);
+        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+        byte[] cipherText = cipher.doFinal(input.getBytes());
+        return Base64.getEncoder().encodeToString(cipherText);
+    }
+
+    public static String decrypt(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException,
+            BadPaddingException, IllegalBlockSizeException {
+
+        Cipher cipher = Cipher.getInstance(algorithm);
+        cipher.init(Cipher.DECRYPT_MODE, key, iv);
+        byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(cipherText));
+        return new String(plainText);
+    }
+
+    public static String FileToString() throws IOException {
+        String content = new String(Files.readAllBytes(Paths.get("key.txt")));
+        return content;
+    }
+
+    public static String SecretKeyToString(SecretKey secretkey) {
+        try {
+            secretkey = KeyGenerator.getInstance("AES").generateKey();
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        String encodedKey = Base64.getEncoder().encodeToString(secretkey.getEncoded());
+        return encodedKey;
+    }
+
+    public static SecretKey StringToSecretKey(String str) {
+        byte[] decodedKey = Base64.getDecoder().decode(str);
+        SecretKey originalKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+        return originalKey;
+    }
+
+    public static void main(String[] args) {
+
+        KeyGenerator();
+
+        try {
+            ServerSocket serverSocket = new ServerSocket(8080);
+            System.out.println("Server in ascolto sulla porta " + 8080);
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Nuova connessione da " + clientSocket.getInetAddress().getHostAddress());
+                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+
+                SecretKey key = StringToSecretKey(FileToString());
+                
+                String[] receivedData = in.readLine().split(":");
+                String encryptedMessage = receivedData[0];
+                String receivedIv = receivedData[1];
+                IvParameterSpec iv = new IvParameterSpec(Base64.getDecoder().decode(receivedIv));
+
+                String message = decrypt(algorithm, encryptedMessage, key, iv);
+
+                if (message != null) {
+                    System.out.println("Sending " + message + " to client");
+                    out.println(message);
+                }
+
+                out.close();
+            }
+        } catch (IOException | InvalidAlgorithmParameterException | InvalidKeyException | NoSuchAlgorithmException |
+                 BadPaddingException | IllegalBlockSizeException | NoSuchPaddingException ex) {
+            ex.printStackTrace();
+        }
+    }
+}
+
+
+    /*
 
     public static SecretKey generateKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
@@ -52,90 +134,6 @@ public class EncryptedEchoServer {
         }
         return message;
     }
-
-    public static IvParameterSpec generateIv() {
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        return new IvParameterSpec(iv);
-    }
-
-    public static String encrypt(String algorithm, String input, SecretKey key,
-            IvParameterSpec iv) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException,
-            BadPaddingException, IllegalBlockSizeException {
-
-        Cipher cipher = Cipher.getInstance(algorithm);
-        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] cipherText = cipher.doFinal(input.getBytes());
-        return Base64.getEncoder()
-                .encodeToString(cipherText);
-    }
-
-    public static String decrypt(String algorithm, String cipherText, SecretKey key,
-            IvParameterSpec iv) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException, InvalidKeyException,
-            BadPaddingException, IllegalBlockSizeException {
-
-        Cipher cipher = Cipher.getInstance(algorithm);
-        cipher.init(Cipher.DECRYPT_MODE, key, iv);
-        byte[] plainText = cipher.doFinal(Base64.getDecoder()
-                .decode(cipherText));
-        return new String(plainText);
-    }
-
-    public static String FileToString() throws IOException {
-        String content = new String(Files.readAllBytes(Paths.get("key.txt")));
-        return content;
-    }
-
-    public static String SecretKeyToString(SecretKey secretkey) {
-        try {
-            secretkey = KeyGenerator.getInstance(algorithm).generateKey();
-        } catch (NoSuchAlgorithmException ex) {
-            Logger.getLogger(EncryptedEchoServer.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        String encodedKey = Base64.getEncoder().encodeToString(secretkey.getEncoded());
-        return encodedKey;
-    }
-
-    public static SecretKey StringToSecretKey(String str) {
-        byte[] decodedKey = Base64.getDecoder().decode(str);
-        SecretKey originalKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, algorithm);
-        return originalKey;
-    }
-
-    public static void main(String[] args) {
-
-        try {
-            ServerSocket serverSocket = new ServerSocket(8080);
-            System.out.println("Server in ascolto sulla porta " + 8080);
-
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("Nuova connessione da " + clientSocket.getInetAddress().getHostAddress());
-                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-
-                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-                out = new PrintWriter(clientSocket.getOutputStream(), true);
-
-                SecretKey key = StringToSecretKey(FileToString());
-                message = decrypt(algorithm, in.readLine(), key, iv);
-                
-                while(message != null){
-                    System.out.println("Sending " + message + " to client");
-                    out.println(message);
-                }
-                
-                out.close();
-
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-}
-
-    /*
 
     public static void saveOnFile(String key){
 
